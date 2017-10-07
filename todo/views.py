@@ -8,48 +8,90 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.parsers import JSONParser
 from todo.models import Item
 from todo.serializers import ItemSerializer
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from todo.models import Item
+from todo.serializers import ItemSerializer
+from todo.models import Item
+from todo.serializers import ItemSerializer
+from django.http import Http404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework import mixins
+from rest_framework import generics
+from rest_framework import permissions
+from todo.permissions import IsOwnerOrReadOnly
 # Create your views here.
 
-@csrf_exempt
-def item_list(request):
+from django.contrib.auth.models import User
+from todo.serializers import UserSerializer
+
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework.reverse import reverse
+
+from rest_framework import renderers
+from rest_framework.response import Response
+
+
+
+
+@api_view(['GET'])
+def api_root(request, format=None):
+    return Response({
+        'users': reverse('user-list', request=request, format=format),
+        'todo': reverse('item-list', request=request, format=format)
+    })
+
+class UserList(generics.ListAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+class ItemHighlight(generics.GenericAPIView):
+    queryset = Item.objects.all()
+    renderer_classes = (renderers.StaticHTMLRenderer,)
+
+    def get(self, request, *args, **kwargs):
+        todo = self.get_object()
+        return Response(todo.highlighted)
+
+class UserDetail(generics.RetrieveAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+class ItemList(mixins.ListModelMixin,
+                  mixins.CreateModelMixin,
+                  generics.GenericAPIView):
+
     """
     List all items, or create a new item.
     """
-    if request.method == 'GET':
-        todo = Item.objects.all()
-        serializer = ItemSerializer(todo, many=True)
-        return JsonResponse(serializer.data, safe=False)
+    queryset = Item.objects.all()
+    serializer_class = ItemSerializer
+    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
 
-    elif request.method == 'POST':
-        data = JSONParser().parse(request)
-        serializer = ItemSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data, status=201)
-        return JsonResponse(serializer.errors, status=400)
 
-@csrf_exempt
-def item_detail(request, pk):
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+    
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)
+
+
+class ItemDetail(mixins.RetrieveModelMixin,
+                    mixins.UpdateModelMixin,
+                    mixins.DestroyModelMixin,
+                    generics.GenericAPIView):
     """
-    Retrieve, update or delete an item.
+    Retrieve, update or delete an item instance.
     """
-    try:
-        todo = Item.objects.get(pk=pk)
-    except Item.DoesNotExist:
-        return HttpResponse(status=404)
+    queryset = Item.objects.all()
+    serializer_class = ItemSerializer
+    permission_classes = (permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly,)
 
-    if request.method == 'GET':
-        serializer = ItemSerializer(todo)
-        return JsonResponse(serializer.data)
-
-    elif request.method == 'PUT':
-        data = JSONParser().parse(request)
-        serializer = ItemSerializer(todo, data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data)
-        return JsonResponse(serializer.errors, status=400)
-
-    elif request.method == 'DELETE':
-        todo.delete()
-        return HttpResponse(status=204)
