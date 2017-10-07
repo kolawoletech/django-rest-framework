@@ -4,6 +4,9 @@ from snippets import views
 
 from snippets.views import SnippetViewSet, UserViewSet, api_root
 from rest_framework import renderers
+from rest_framework.routers import DefaultRouter
+
+
 
 snippet_list = SnippetViewSet.as_view({
     'get': 'list',
@@ -32,11 +35,20 @@ urlpatterns = format_suffix_patterns([
     url(r'^snippets/(?P<pk>[0-9]+)/$', snippet_detail, name='snippet-detail'),
     url(r'^snippets/(?P<pk>[0-9]+)/highlight/$', snippet_highlight, name='snippet-highlight'),
     url(r'^users/$', user_list, name='user-list'),
-    url(r'^users/(?P<pk>[0-9]+)/$', user_detail, name='user-detail')
+    url(r'^users/(?P<pk>[0-9]+)/$', user_detail, name='user-detail'),
+ 
 ])
 
 # Login and logout views for the browsable API
+
+
+# Create a router and register our viewsets with it.
+router = DefaultRouter()
+router.register(r'snippets', views.SnippetViewSet)
+router.register(r'users', views.UserViewSet)
+
 urlpatterns += [
+    url(r'^', include(router.urls)),
     url(r'^api-auth/', include('rest_framework.urls',
                                namespace='rest_framework')),
 ]
