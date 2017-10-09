@@ -27,7 +27,7 @@ from todo.permissions import IsOwnerOrReadOnly
 
 from django.contrib.auth.models import User
 from todo.serializers import UserSerializer
-
+from rest_framework.decorators import detail_route
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -35,8 +35,14 @@ from rest_framework.reverse import reverse
 from rest_framework import renderers
 from rest_framework.response import Response
 
+from rest_framework import viewsets
 
-
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    This viewset automatically provides `list` and `detail` actions.
+    """
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
 
 @api_view(['GET'])
 def api_root(request, format=None):
@@ -45,11 +51,8 @@ def api_root(request, format=None):
         'todo': reverse('item-list', request=request, format=format)
     })
 
-class UserList(generics.ListAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
 
-class ItemHighlight(generics.GenericAPIView):
+''' class ItemHighlight(generics.GenericAPIView):
     queryset = Item.objects.all()
     renderer_classes = (renderers.StaticHTMLRenderer,)
 
@@ -57,9 +60,6 @@ class ItemHighlight(generics.GenericAPIView):
         todo = self.get_object()
         return Response(todo.highlighted)
 
-class UserDetail(generics.RetrieveAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
 
 class ItemList(mixins.ListModelMixin,
                   mixins.CreateModelMixin,
@@ -102,5 +102,25 @@ class ItemDetail(mixins.RetrieveModelMixin,
         return self.update(request, *args, **kwargs)
 
     def delete(self, request, *args, **kwargs):
-        return self.destroy(request, *args, **kwargs)
+        return self.destroy(request, *args, **kwargs) '''
+
+class ItemViewSet(viewsets.ModelViewSet):
+    """
+    This viewset automatically provides `list`, `create`, `retrieve`,
+    `update` and `destroy` actions.
+
+    Additionally we also provide an extra `highlight` action.
+    """
+    queryset = Item.objects.all()
+    serializer_class = ItemSerializer
+    permission_classes = (permissions.IsAuthenticatedOrReadOnly,
+                          IsOwnerOrReadOnly,)
+
+    @detail_route(renderer_classes=[renderers.StaticHTMLRenderer])
+    def highlight(self, request, *args, **kwargs):
+        todo = self.get_object()
+        return Response(todo.highlighted)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
